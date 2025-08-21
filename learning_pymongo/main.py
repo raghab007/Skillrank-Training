@@ -5,6 +5,7 @@ users = db.users
 
 
 while True:
+    print("Enter add for adding ")
     answer = input("What do you want to do ?'Add', 'Update' ,'Delete','Getll','GetByName' or  Quit for exit ");
     if(answer.lower()=="add"):
         while True:
