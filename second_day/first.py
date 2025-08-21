@@ -2,27 +2,28 @@ from pymongo import MongoClient
 from bson.objectid import ObjectId
 
 
-client =MongoClient('localhost',27017)
+client = MongoClient('localhost',27017)
 db = client['mydb']
 users = db.users
 
 
 while True:
+    print("________________________________")
     print("Enter add to add new user ")
     print("Enter delete to delete the user")
     print("Enter get_all to retrieve all the users")
+    print("________________________________")
     answer = input("What do you want to do? ");
     if(answer.lower()=="add"):
         while True:
             try:
                 name = input("Enter student name: ")
-                email = input("Enter student age: ")
-                address= input("Enter student height: ")
+                email = input("Enter student email: ")
+                address=input("Enter student address: ")
                 phone = input("Enter phone number: ")
                 age = int(input("Enter age: "))
                 user = {"name":name,"email":email,"address":address,"phone":phone, "age":age}
-                inserted_user = users.insert_one(user)
-                print(inserted_user.__inserted_id)
+                users.insert_one(user)
                 print("User inserted successfully")
                 answer = input("Do you want to insert again. for yes any key for no")
                 if(answer.lower()!="y"):
@@ -66,6 +67,7 @@ while True:
                     print("Please enter valid id")
         except Exception as e:
             print(e)
+        
     elif(answer.lower()=="exit"):
         print("Thank you see you soon!")
         break
@@ -80,6 +82,17 @@ while True:
 
         
     
+
+
+
+
+
+
+
+
+
+
+
 
 
 print("----------------------Users starting with K oe Z-------------------------")
