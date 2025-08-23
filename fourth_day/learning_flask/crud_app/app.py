@@ -8,13 +8,16 @@ mongo_client = MongoClient('mongodb://localhost:27017');
 db = mongo_client['mydb']
 app =  Flask(__name__)
 
-
 @app.route('/')
 def home():
    return render_template('index.html')
 
+@app.route('/users')
+def users_page():
+   return render_template('users.html')
+
 # get users
-@app.route('/users/<int:pagenumber>/<int:pagesize>',methods=['GET'])
+@app.route('/api/users/<int:pagenumber>/<int:pagesize>',methods=['GET'])
 def users(pagenumber=1, pagesize=10):
     print('pagenumber', pagenumber)
     print('pagesize', pagesize)
@@ -24,7 +27,6 @@ def users(pagenumber=1, pagesize=10):
     if not users:
         print("zero")  # no users found
 
-    print(users)
 
     return Response(
         json.dumps(users, default=json_util.default),
@@ -32,17 +34,16 @@ def users(pagenumber=1, pagesize=10):
     )
 
 #add users
-@app.route('/users',methods=['POST'])
+@app.route('/api/users',methods=['POST'])
 def add_user():
    try:
       data = request.get_json()
-      print(data['name'])
+
       if(not 'name' in data or not 'email' in data or not 'address' in data or not 'phone' in data or not 'age' in data):
          return {
             "message":"incomplete data provided"
          }
       users = db['users']
-      print(data)
       users.insert_one(data)
       return {
          "message":"data inserted successfully"
@@ -54,7 +55,7 @@ def add_user():
       }
 
 #get user by id
-@app.route('/users/<userid>')
+@app.route('/api/users/<userid>')
 def get_user_by_id(userid):
    try:
       users = db['users']
@@ -74,7 +75,7 @@ def get_user_by_id(userid):
 
 
 # delete user by id
-@app.route('/users/<userid>',methods= ['DELETE'])
+@app.route('/api/users/<userid>',methods= ['DELETE'])
 def delete_user(userid):
    try:
       users = db['users']
@@ -94,20 +95,26 @@ def delete_user(userid):
 
 
 #update user by id
-@app.route('/users/<userid>',methods =['PUT'])
+@app.route('/api/users/<userid>',methods =['PUT'])
 def update_user(userid):
    try:
       data= request.get_json();
+   
       users = db['users']
       database_user  =users.find_one({"_id":ObjectId(userid)})
-      database_user['_id'] = str(database_user['_id'])
       if(database_user):
+         database_user['_id'] = str(database_user['_id'])
          for key in database_user.keys():
-            database_user[key] = data[key] if key in database_user else database_user[key]
+            database_user[key] = data[key] if key in data else database_user[key]
          
+         del database_user["_id"]
+         users.update_one({"_id":ObjectId(userid)},{"$set":database_user})
          return {
             "message":"user updated successfully"
          }
+      else :
+         print("user doesnot exists")
+
       return {
          "message":"user does not exists"
       }

@@ -69,7 +69,7 @@
       </div>
     </nav>
 
-    <form style="display: flex; flex-direction: column; align-items: center">
+    <form onsubmit="addUser(event)" style="display: flex; flex-direction: column; align-items: center">
       <div class="mb-2" style="width: 350px">
         <label for="name" class="form-label">Name</label>
         <input
@@ -101,6 +101,40 @@
       </div>
     </form>
 
+    <script>
+      async function  addUser(e){ 
+        e.preventDefault();
+        try{ // STOP the page from reloading
+            const name =  document.getElementById('name').value
+            const email =  document.getElementById('email').value
+            const address =  document.getElementById('address').value
+            const phone =  document.getElementById('phone').value
+            const age =  document.getElementById('age').value
+            const user = {
+              name,
+              email,
+              address,
+              phone,
+              age
+            }
+            console.log(user)
+            const url= 'http://127.0.0.1:5000/api/users'
+            response = await fetch(
+              url,
+              {
+                body:JSON.stringify(user),
+                method:'POST',
+                headers:{"Content-Type":"application/json"}
+              }
+            )
+          alert("User added successfully")
+        }catch(error){
+            console.log(error)
+            alert("Error occurer")
+        }
+      } 
+
+    </script>
     <script
       src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"
       integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q"
