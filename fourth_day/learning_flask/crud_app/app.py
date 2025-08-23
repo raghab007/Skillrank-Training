@@ -1,27 +1,36 @@
 from markupsafe import escape
 from flask import Flask, request,render_template,jsonify,Response
 from pymongo import MongoClient
-from bson import json_util, ObjectId   
+from bson import json_util, ObjectId  
+from utils import utils 
 import json
 mongo_client = MongoClient('mongodb://localhost:27017');
 db = mongo_client['mydb']
 app =  Flask(__name__)
+
 
 @app.route('/')
 def home():
    return render_template('index.html')
 
 # get users
-@app.route('/users',methods=['GET'])
-def users():
-   # return render_template("users.html")
-   users = db.users.find()
+@app.route('/users/<int:pagenumber>/<int:pagesize>',methods=['GET'])
+def users(pagenumber=1, pagesize=10):
+    print('pagenumber', pagenumber)
+    print('pagesize', pagesize)
 
-   return Response(
-        json.dumps(list(users), default=json_util.default),
+    users = utils.skip_limit(page_num=pagenumber, page_size=pagesize)
+
+    if not users:
+        print("zero")  # no users found
+
+    print(users)
+
+    return Response(
+        json.dumps(users, default=json_util.default),
         mimetype="application/json"
     )
-   
+
 #add users
 @app.route('/users',methods=['POST'])
 def add_user():
@@ -49,9 +58,13 @@ def add_user():
 def get_user_by_id(userid):
    try:
       users = db['users']
-      user = users.find_one({'_id':ObjectId(f"{userid}")})
-      user['_id'] = str(user['_id'])
-      return user
+      user = users.find_one({'_id':ObjectId(userid)})
+      if(user):
+         user['_id'] = str(user['_id'])
+         return user
+      return {
+         "message":"user not found"
+      }
    except Exception as e:
       print(e)
       return {
@@ -65,10 +78,13 @@ def get_user_by_id(userid):
 def delete_user(userid):
    try:
       users = db['users']
-      user = users.find_one_and_delete({'_id':ObjectId(f"{userid}")})
-      print('user deleted', user)
+      user = users.find_one_and_delete({'_id':ObjectId(userid)})
+      if(user):
+         return {
+            "message":"user deleted successfully"
+         }
       return {
-         "message":"user deleted successfully"
+         "message":"user with that id doesnot exists"
       }
    except Exception as e:
       print(e)
@@ -77,10 +93,31 @@ def delete_user(userid):
       }
 
 
+#update user by id
+@app.route('/users/<userid>',methods =['PUT'])
+def update_user(userid):
+   try:
+      data= request.get_json();
+      users = db['users']
+      database_user  =users.find_one({"_id":ObjectId(userid)})
+      database_user['_id'] = str(database_user['_id'])
+      if(database_user):
+         for key in database_user.keys():
+            database_user[key] = data[key] if key in database_user else database_user[key]
+         
+         return {
+            "message":"user updated successfully"
+         }
+      return {
+         "message":"user does not exists"
+      }
+   except Exception as e:
+      print('exception')
+      print(e)
+      return {
+         "message":"internal server occured"
+      }
 
-# @app.route('/user/<username>',methods=['POST'])
-# def show_user_profile(username):
-#     return f'User {username}'
 
 
 # @app.route('/post/<int:post_id>')
@@ -94,6 +131,8 @@ def delete_user(userid):
 @app.route('/health')
 def health_check():
    return 'ok'
+
+
 
 
 
