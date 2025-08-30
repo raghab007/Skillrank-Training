@@ -1,145 +1,180 @@
-from markupsafe import escape
-from flask import Flask, request,render_template,jsonify,Response
-from pymongo import MongoClient
-from bson import json_util, ObjectId  
-from utils import utils 
+from flask import Flask, request, jsonify, Response, render_template
+from bson import json_util, ObjectId
 import json
-mongo_client = MongoClient('mongodb://localhost:27017');
+from flask_cors import CORS
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
+from openai import AzureOpenAI
+
+client = AzureOpenAI(
+    api_version="2024-12-01-preview",
+    azure_endpoint="https://np01c-mexrff8s-eastus2.cognitiveservices.azure.com/",
+    api_key="8xU1tTQCTr2CyRUpMO5X3g5juYWXOhvF1Rx3RU986FDZM5YdqZCwJQQJ99BHACHYHv6XJ3w3AAAAACOGYA4C"
+)
+
+uri = "mongodb+srv://pokhrelraghab60:Raghab@cluster0.q4dyd0y.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+
+# Create a new client and connect to the server
+mongo_client = MongoClient(uri, tlsAllowInvalidCertificates=True, server_api=ServerApi('1'))
+
+# Send a ping to confirm a successful connection
+try:
+    mongo_client.admin.command('ping')
+    print("Pinged your deployment. You successfully connected to MongoDB!")
+except Exception as e:
+    print(e)
+
 db = mongo_client['mydb']
-app =  Flask(__name__)
+
+app = Flask(__name__)
+CORS(app)
+
+def serialize_user(user_doc):
+    if not user_doc:
+        return None
+    user_doc["_id"] = str(user_doc["_id"])
+    return user_doc
 
 @app.route('/')
 def home():
-   return render_template('index.html')
+    return jsonify({"message": "Hello from Lambda Flask MongoDB app!"})
+
+
+
+def  ai_response(content):
+    system_prompt = """
+    You are a JSON API generator. 
+    Convert user requests into CRUD operations for MongoDB.
+    Response format ONLY:
+    {
+      "operation": "create|read|update|delete",
+      "collection": "users",
+      "filter": {...},     # for read, update, delete
+      "data": {...}        # for create, update
+    }
+    """
+    response = client.chat.completions.create(
+    messages=[
+        {
+            "role": "system",
+            "content": system_prompt,
+        },
+        {
+            "role": "user",
+            "content": content,
+        }
+    ],
+    max_completion_tokens=16384,
+    model="gpt-5-mini"
+    )
+    print(json.loads(response.choices[0].message.content))
+    return (json.loads(response.choices[0].message.content))
+
+
+@app.route("/chat/<content>",methods=['GET'])
+def chat(content):
+    try:
+        genereted= ai_response(content)
+        print(genereted)
+        print(genereted['operation'])
+        if(genereted['operation']=="create"):
+           res =  db['users'].insert_one(genereted['data'])
+           print(res)
+           return jsonify({"message":"user inserted"})
+        elif(genereted['operation']=='update'):
+            res = db['users'].update_one(genereted['filter'],genereted['data'])
+            return jsonify({"message":"user updated"})
+        elif(genereted['operation']=='delete'):
+            filter = genereted['filter']
+            data= genereted['data']
+            res = db['users'].delete_many(filter,data)
+            return jsonify({"message":"users deleted"})
+        elif(genereted['operation']=='read'):
+            filter = genereted['filter']
+            users = db['users'].find(filter)
+            all_users = []
+            for user in users:
+                all_users.append(serialize_user(user))
+            return jsonify({"message":"all users ","users":all_users})
+
+    except Exception as e:
+        print(e)
+        return jsonify("Internal server error occured")
+  
+
 
 @app.route('/users')
 def users_page():
-   return render_template('users.html')
+    return jsonify({"message": "Hello from Raghab Flask MongoDB app!"})
 
-# get users
-@app.route('/api/users/<int:pagenumber>/<int:pagesize>',methods=['GET'])
-def users(pagenumber=1, pagesize=10):
-    print('pagenumber', pagenumber)
-    print('pagesize', pagesize)
+@app.route('/api/users/<int:pagenumber>/<int:pagesize>', methods=['GET'])
+def get_users(pagenumber=1, pagesize=10):
+    if(pagenumber<1):
+        return  {}
 
-    users = utils.skip_limit(page_num=pagenumber, page_size=pagesize)
+    users_cursor = db.users.find().skip((pagenumber - 1) * pagesize).limit(pagesize)
+    users_list = [serialize_user(u) for u in users_cursor]
+    data  = {"users":users_list, "count":db.users.count_documents({})}
+    return Response(json.dumps(data, default=json_util.default), mimetype="application/json")
 
-    if not users:
-        print("zero")  # no users found
-
-
-    return Response(
-        json.dumps(users, default=json_util.default),
-        mimetype="application/json"
-    )
-
-#add users
-@app.route('/api/users',methods=['POST'])
+@app.route('/api/users', methods=['POST'])
 def add_user():
-   try:
-      data = request.get_json()
+    try:
+        data = request.get_json(force=True)
+        required_fields = ["name", "email", "address", "phone", "age"]
+        if not all(field in data for field in required_fields):
+            return jsonify({"message": "Incomplete data provided"}), 400
+        db.users.insert_one(data)
+        return jsonify({"message": "Data inserted successfully"}), 201
+    except Exception as e:
+        print("Add user error:", e)
+        return jsonify({"message": "Internal server error", "error": str(e)}), 500
 
-      if(not 'name' in data or not 'email' in data or not 'address' in data or not 'phone' in data or not 'age' in data):
-         return {
-            "message":"incomplete data provided"
-         }
-      users = db['users']
-      users.insert_one(data)
-      return {
-         "message":"data inserted successfully"
-      }
-   except Exception as e:
-      print(e)
-      return {
-         "message":"internal server occurred"
-      }
-
-#get user by id
-@app.route('/api/users/<userid>')
+@app.route('/api/users/<userid>', methods=['GET'])
 def get_user_by_id(userid):
-   try:
-      users = db['users']
-      user = users.find_one({'_id':ObjectId(userid)})
-      if(user):
-         user['_id'] = str(user['_id'])
-         return user
-      return {
-         "message":"user not found"
-      }
-   except Exception as e:
-      print(e)
-      return {
-         "message":"internal server occured"
-      }
+    try:
+        user = db.users.find_one({"_id": ObjectId(userid)})
+        user = serialize_user(user)
+        if user:
+            return jsonify(user)
+        return jsonify({"message": "User not found"}), 404
+    except Exception as e:
+        print("Get user error:", e)
+        return jsonify({"message": "Internal server error", "error": str(e)}), 500
 
-
-
-# delete user by id
-@app.route('/api/users/<userid>',methods= ['DELETE'])
-def delete_user(userid):
-   try:
-      users = db['users']
-      user = users.find_one_and_delete({'_id':ObjectId(userid)})
-      if(user):
-         return {
-            "message":"user deleted successfully"
-         }
-      return {
-         "message":"user with that id doesnot exists"
-      }
-   except Exception as e:
-      print(e)
-      return {
-         "message":"internal server occured"
-      }
-
-
-#update user by id
-@app.route('/api/users/<userid>',methods =['PUT'])
+@app.route('/api/users/<userid>', methods=['PUT'])
 def update_user(userid):
-   try:
-      data= request.get_json();
-   
-      users = db['users']
-      database_user  =users.find_one({"_id":ObjectId(userid)})
-      if(database_user):
-         database_user['_id'] = str(database_user['_id'])
-         for key in database_user.keys():
-            database_user[key] = data[key] if key in data else database_user[key]
-         
-         del database_user["_id"]
-         users.update_one({"_id":ObjectId(userid)},{"$set":database_user})
-         return {
-            "message":"user updated successfully"
-         }
-      else :
-         print("user doesnot exists")
+    try:
+        data = request.get_json(force=True)
+        user = db.users.find_one({"_id": ObjectId(userid)})
+        if not user:
+            return jsonify({"message": "User does not exist"}), 404
+        update_fields = {k: v for k, v in data.items() if k in user}
+        db.users.update_one({"_id": ObjectId(userid)}, {"$set": update_fields})
+        return jsonify({"message": "User updated successfully"})
+    except Exception as e:
+        print("Update user error:", e)
+        return jsonify({"message": "Internal server error", "error": str(e)}), 500
 
-      return {
-         "message":"user does not exists"
-      }
-   except Exception as e:
-      print('exception')
-      print(e)
-      return {
-         "message":"internal server occured"
-      }
+@app.route('/api/users/<userid>', methods=['DELETE'])
+def delete_user(userid):
+    try:
+        result = db.users.find_one_and_delete({"_id": ObjectId(userid)})
+        if result:
+            return jsonify({"message": "User deleted successfully"})
+        return jsonify({"message": "User with that ID does not exist"}), 404
+    except Exception as e:
+        print("Delete user error:", e)
+        return jsonify({"message": "Internal server error", "error": str(e)}), 500
 
-
-
-# @app.route('/post/<int:post_id>')
-# def show_post(post_id):
-#     return f'Post {post_id}'
-
-# @app.route('/path/<path:subpath>')
-# def show_subpath(subpath):
-#   return f'Subpath {subpath}'
-
-@app.route('/health')
+@app.route('/health', methods=['GET'])
 def health_check():
-   return 'ok'
+    return "ok"
 
+# # ===================== Lambda Handler =====================
+# def lambda_handler(event, context):
+#     import awsgi
+#     return awsgi.response(app, event, context)
 
-
-
-
+if __name__ == "__main__":
+    app.run(debug=True)
