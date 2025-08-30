@@ -5,14 +5,18 @@ from flask_cors import CORS
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 from openai import AzureOpenAI
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 client = AzureOpenAI(
     api_version="2024-12-01-preview",
-    azure_endpoint="https://np01c-mexrff8s-eastus2.cognitiveservices.azure.com/",
-    api_key="8xU1tTQCTr2CyRUpMO5X3g5juYWXOhvF1Rx3RU986FDZM5YdqZCwJQQJ99BHACHYHv6XJ3w3AAAAACOGYA4C"
+    azure_endpoint=os.getenv("AZURE_ENPOINT"),
+    api_key=os.getenv("API_KEY")
 )
 
-uri = "mongodb+srv://pokhrelraghab60:Raghab@cluster0.q4dyd0y.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+uri = os.getenv("MONGO_URL")
 
 # Create a new client and connect to the server
 mongo_client = MongoClient(uri, tlsAllowInvalidCertificates=True, server_api=ServerApi('1'))
