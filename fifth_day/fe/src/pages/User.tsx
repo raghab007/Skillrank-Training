@@ -14,12 +14,32 @@ function User() {
     const [isUpdating, setIsUpdating] = useState(false);
     const [updateUser, setUpdateUser] = useState<IUser>()
     const [currentPage, setCurrentPage] = useState(1)
+    const [searchTerm, setSearchTerm] = useState("")
+    const [filteredUsers, setFilteredUsers] = useState<IUser[]>([])
     const pageSize = 5;
     const { users, error, count, loading } = useFetchUsersData(`/api/users/${currentPage}/${pageSize}`);
 
     const { users: nextUsers } = useFetchUsersData(`/api/users/${currentPage + 1}/${pageSize}`)
     const { users: previousUsers } = useFetchUsersData(`/api/users/${currentPage - 1}/${pageSize}`)
     const totalPages = Math.ceil(count / pageSize)
+
+    // Filter users based on search term
+    useEffect(() => {
+        if (users && users.length > 0) {
+            if (searchTerm === "") {
+                setFilteredUsers(users);
+            } else {
+                const filtered = users.filter(user =>
+                    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    user.phone.includes(searchTerm) ||
+                    user.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    user.age.toString().includes(searchTerm)
+                );
+                setFilteredUsers(filtered);
+            }
+        }
+    }, [users, searchTerm]);
 
     if (loading) return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -72,6 +92,14 @@ function User() {
         setCurrentPage(current => current - 1)
     }
 
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchTerm(e.target.value);
+    };
+
+    const clearSearch = () => {
+        setSearchTerm("");
+    };
+
     return (
         <div className="min-h-screen bg-gray-50 py-8">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -91,6 +119,41 @@ function User() {
                             <span className="font-semibold text-blue-600">{count}</span>
                         </div>
                     </div>
+                </div>
+
+                {/* Search Bar */}
+                <div className="mb-6">
+                    <div className="relative max-w-md">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Search users by name, email, phone, address, or age..."
+                            value={searchTerm}
+                            onChange={handleSearchChange}
+                            className="block w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        />
+                        {searchTerm && (
+                            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                <button
+                                    onClick={clearSearch}
+                                    className="h-5 w-5 text-gray-400 hover:text-gray-600"
+                                >
+                                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    {searchTerm && (
+                        <p className="mt-2 text-sm text-gray-600">
+                            Showing {filteredUsers.length} results for "{searchTerm}"
+                        </p>
+                    )}
                 </div>
 
                 {/* Update Form Modal */}
@@ -120,9 +183,14 @@ function User() {
                 <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
                     {/* Table Header */}
                     <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                        <h2 className="text-lg font-medium text-gray-900">
-                            User Directory
-                        </h2>
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-medium text-gray-900">
+                                User Directory
+                            </h2>
+                            {searchTerm && filteredUsers.length === 0 && (
+                                <span className="text-sm text-red-600">No matching users found</span>
+                            )}
+                        </div>
                     </div>
 
                     {users && users.length > 0 ? (
@@ -145,7 +213,7 @@ function User() {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                    {users?.map((user) => (
+                                    {filteredUsers?.map((user) => (
                                         <tr key={user._id} className="hover:bg-gray-50">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center">
@@ -208,8 +276,8 @@ function User() {
                     )}
                 </div>
 
-                {/* Pagination */}
-                {users && users.length > 0 && (
+                {/* Pagination - Only show if not searching */}
+                {users && users.length > 0 && !searchTerm && (
                     <div className="mt-6">
                         <div className="bg-white rounded-lg shadow border border-gray-200 px-4 py-3 flex items-center justify-between">
                             <div className="flex-1 flex justify-between items-center sm:hidden">
