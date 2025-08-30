@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { axiosInstance } from "../api/apis";
 import type { IUser } from "../pages/User";
 
@@ -8,24 +8,26 @@ function useFetchUsersData(url: string) {
     const [error, setError] = useState(false);
     const [count, setCount] = useState(0)
 
-    useEffect(() => {
-        axiosInstance
-            .get(url)
-            .then((response) => {
-                setUsers(response.data.users);
-                setCount(response.data.count)
-                setLoading(false);
-            })
-            .catch((error) => {
-                setError(true);
-                setLoading(false);
-                console.log(error)
-            });
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const response = await axiosInstance.get(url);
+            setUsers(response.data.users);
+            setCount(response.data.count);
+            setError(false);
+        } catch (error) {
+            setError(true);
+            console.log(error);
+        } finally {
+            setLoading(false);
+        }
     }, [url]);
 
-    return { users, loading, error, count };
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
-
+    return { users, loading, error, count, refetch: fetchData };
 }
 
 export { useFetchUsersData };
