@@ -4,9 +4,8 @@ function Navbar() {
     const location = useLocation();
 
     const menuItems = [
-        { name: "Dashboard", path: "/dashboard" },
+        { name: "Dashboard", path: "/users" },
         { name: "Add User", path: "/add-user" },
-        { name: "Users", path: "/users" },
     ];
 
     const isActive = (path: any) => location.pathname === path;
