@@ -1,19 +1,32 @@
 import { useEffect, useState, useCallback } from "react";
 import { axiosInstance } from "../api/apis";
-import type { IUser } from "../pages/User";
 
-function useFetchUsersData(url: string) {
-    const [users, setUsers] = useState<IUser[]>([]);
+function usePaginatedFetchData(url: string) {
+    const [data, setData] = useState(null)
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
-    const [count, setCount] = useState(0)
-
-    const fetchData = useCallback(async () => {
+    const [currentPage, setCurrentPage] = useState(1)
+    const [nextData, setNextData] = useState(null)
+    const [previousData, setPreviousData] = useState(null)
+    const [count, setCount] = useState(null)
+    const pageSize = 5;
+    const fetchData = async () => {
         setLoading(true);
         try {
-            const response = await axiosInstance.get(url);
-            setUsers(response.data.users);
-            setCount(response.data.count);
+            const response = await axiosInstance.get(`${url}/${currentPage}/${pageSize}`);
+            console.log(response.data)
+            const nextPage = currentPage + 1
+            const previousPage = currentPage - 1
+            if (previousPage < 1) {
+                setPreviousData(null)
+            } else {
+                const previousResponse = await axiosInstance.get(`${url}/${previousPage}/${pageSize}`)
+                setPreviousData(previousResponse.data.data)
+            }
+            const nextResponse = await axiosInstance.get(`${url}/${nextPage}/${pageSize}`)
+            setData(response.data.data);
+            setCount(response.data.count)
+            setNextData(nextResponse.data.data)
             setError(false);
         } catch (error) {
             setError(true);
@@ -21,13 +34,13 @@ function useFetchUsersData(url: string) {
         } finally {
             setLoading(false);
         }
-    }, [url]);
+    };
 
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
+    }, [currentPage]);
 
-    return { users, loading, error, count, refetch: fetchData };
+    return { data, currentPage, setCurrentPage, nextData, previousData, count, loading, error, refetch: fetchData };
 }
 
-export { useFetchUsersData };
+export { usePaginatedFetchData };

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { axiosInstance } from "../api/apis";
-import { useFetchUsersData } from "../hooks/user";
+import { usePaginatedFetchData } from "../hooks/user";
 import { UpdateUserForm } from "../components/UpdateUserForm";
 
 interface IUser {
@@ -15,14 +15,14 @@ interface IUser {
 function User() {
     const [isUpdating, setIsUpdating] = useState(false);
     const [updateUser, setUpdateUser] = useState<IUser>()
-    const [currentPage, setCurrentPage] = useState(1)
     const [searchTerm, setSearchTerm] = useState("")
     const [filteredUsers, setFilteredUsers] = useState<IUser[]>([])
     const pageSize = 5;
-    const { users, error, count, loading, refetch } = useFetchUsersData(`/api/users/${currentPage}/${pageSize}`);
+    let { data: users, currentPage, setCurrentPage, nextData: nextUsers, previousData: previousUsers, count, error, loading, refetch } = usePaginatedFetchData(`/api/users`);
 
-    const { users: nextUsers } = useFetchUsersData(`/api/users/${currentPage + 1}/${pageSize}`)
-    const { users: previousUsers } = useFetchUsersData(`/api/users/${currentPage - 1}/${pageSize}`)
+    if (loading) {
+        return <h1>Loading...</h1>
+    }
     const totalPages = Math.ceil(count / pageSize)
     const [chatbot, setChatbot] = useState(false);
     const [chatMessages, setChatMessages] = useState<Array<{ role: string, content: string }>>([]);
@@ -34,6 +34,7 @@ function User() {
             if (searchTerm === "") {
                 setFilteredUsers(users);
             } else {
+                //@ts-ignore
                 const filtered = users.filter(user =>
                     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -44,7 +45,7 @@ function User() {
                 setFilteredUsers(filtered);
             }
         }
-    }, [users, searchTerm]);
+    }, [searchTerm]);
 
     // Initialize chatbot with welcome message
     useEffect(() => {
