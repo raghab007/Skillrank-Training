@@ -9,7 +9,6 @@ from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 import os
 from utils import utils
-
 uri = os.getenv("MONGO_URL")
 # Create a new client and connect to the server
 mongo_client = MongoClient(uri, tlsAllowInvalidCertificates=True, server_api=ServerApi('1'))
@@ -22,22 +21,14 @@ except Exception as e:
     print(e)
 db = mongo_client['mydb']
 
-
-
 # creating app instance
 app = Flask(__name__)
 CORS(app)
 
 
-
-
-
-
 @app.route('/')
 def home():
     return jsonify({"message": "Hello from Lambda Flask MongoDB app!"})
-
-
 
 @app.route('/web/<query>',methods=["POST"])
 def web(query):
@@ -55,9 +46,15 @@ def web(query):
     except Exception as e:
         print(e)
         return jsonify({"message":"internal error occurred"})
+    
 
-
-
+@app.route("/web/<int:page_number>/<int:total_items>")
+def get_web(page_number, total_items):
+    web_data = db["web_data"]
+    data = web_data.find().skip(page_number-1).limit(total_items);
+    new_data = list(map(lambda x:utils.serialize_user(x),data))
+    count =  web_data.count_documents({})
+    return jsonify({"data":new_data,"count":count})
 
 
 @app.route("/chat/<content>", methods=['GET'])
@@ -103,10 +100,9 @@ def users_page():
 def get_users(pagenumber=1, pagesize=10):
     if (pagenumber < 1):
         return {}
-
     users_cursor = db.users.find().skip((pagenumber - 1) * pagesize).limit(pagesize)
     users_list = [utils.serialize_user(u) for u in users_cursor]
-    data = {"users": users_list, "count": db.users.count_documents({})}
+    data = {"data": users_list, "count": db.users.count_documents({})}
     return Response(json.dumps(data, default=json_util.default), mimetype="application/json")
 
 
